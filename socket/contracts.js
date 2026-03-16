@@ -4,4 +4,7 @@ export const EVENTS = {
 
 	// server -> client | server send message
 	RECEIVE_MESSAGE: "receive_message",
+
+	// server -> client | sent once on connect with server instance info
+	SERVER_INFO: "server_info",
 };
