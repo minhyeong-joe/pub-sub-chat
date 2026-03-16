@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat — Single Instance</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #app {
+      width: 480px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 600px;
+    }
+
+    header {
+      background: #1a73e8;
+      color: #fff;
+      padding: 16px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header span.dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #81c995;
+      display: inline-block;
+    }
+
+    #username-bar {
+      padding: 10px 16px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    #username-bar label { color: #555; white-space: nowrap; }
+
+    #username-input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      max-width: 80%;
+      padding: 9px 13px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .msg.own {
+      align-self: flex-end;
+      background: #1a73e8;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.other {
+      align-self: flex-start;
+      background: #f0f2f5;
+      color: #1a1a1a;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg .meta {
+      font-size: 0.72rem;
+      opacity: 0.75;
+      margin-bottom: 3px;
+    }
+
+    .msg.own .meta { text-align: right; }
+
+    #form {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid #e0e0e0;
+      background: #fff;
+    }
+
+    #message-input {
+      flex: 1;
+      padding: 9px 14px;
+      border: 1px solid #ccc;
+      border-radius: 22px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #message-input:focus { border-color: #1a73e8; }
+
+    #send-btn {
+      padding: 9px 18px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 22px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #send-btn:hover { background: #1558b0; }
+
+    .system-msg {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #999;
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="dot"></span>
+      Chat
+    </header>
+
+    <div id="username-bar">
+      <label for="username-input">Username:</label>
+      <input id="username-input" type="text" placeholder="Enter your name" maxlength="30" />
+    </div>
+
+    <div id="messages"></div>
+
+    <form id="form">
+      <input id="message-input" type="text" placeholder="Type a message…" autocomplete="off" maxlength="500" />
+      <button id="send-btn" type="submit">Send</button>
+    </form>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const EVENTS = {
+      SEND_MESSAGE: "send_message",
+      RECEIVE_MESSAGE: "receive_message",
+    };
+
+    const socket = io();
+
+    const messagesEl = document.getElementById("messages");
+    const form = document.getElementById("form");
+    const messageInput = document.getElementById("message-input");
+    const usernameInput = document.getElementById("username-input");
+
+    function formatTime(date) {
+      return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function appendMessage({ content, username, timestamp, own }) {
+      const div = document.createElement("div");
+      div.className = "msg " + (own ? "own" : "other");
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = (own ? "You" : username) + " · " + formatTime(timestamp);
+
+      const text = document.createElement("div");
+      text.textContent = content;
+
+      div.appendChild(meta);
+      div.appendChild(text);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendSystem(text) {
+      const div = document.createElement("div");
+      div.className = "system-msg";
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    socket.on("connect", () => {
+      appendSystem("Connected to server (" + socket.id + ")");
+    });
+
+    socket.on("disconnect", () => {
+      appendSystem("Disconnected from server");
+    });
+
+    socket.on(EVENTS.RECEIVE_MESSAGE, (payload) => {
+      appendMessage({ ...payload, own: false });
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const content = messageInput.value.trim();
+      const username = usernameInput.value.trim() || "Anonymous";
+      if (!content) return;
+
+      const timestamp = new Date();
+      socket.emit(EVENTS.SEND_MESSAGE, { content, username });
+      appendMessage({ content, username, timestamp, own: true });
+      messageInput.value = "";
+    });
+  </script>
+</body>
+</html>
